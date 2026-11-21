@@ -80,7 +80,9 @@ static double polyFitRMSE(const vector<double>& U, const vector<double>& V,
 }
 
 struct Track {
-    string name;
+    string name;      // 图上用的短名，必须是 ASCII
+    string cn;        // 控制台用的中文名
+    string typeEn;    // 图上用的运动类型，必须是 ASCII
     Scalar color;
     vector<Point2d> prof;     // 分箱后的折线点 (u, v)
     bool sortX;
@@ -105,11 +107,13 @@ int main(int argc, char** argv) {
     Mat hsv;
     cvtColor(img, hsv, COLOR_BGR2HSV);
 
-    struct Spec { string name; int h1, h2; Scalar bgr; };
+    // putText 的 Hershey 字体只认 ASCII，中文会画成问号，所以 name 只有
+    // 字母，中文说明放在 cn 里，只用于控制台。
+    struct Spec { string name; string cn; int h1, h2; Scalar bgr; };
     vector<Spec> specs = {
-        {"A(红色)", 0,   10,  Scalar(0, 0, 255)},
-        {"B(蓝色)", 100, 130, Scalar(255, 0, 0)},
-        {"C(绿色)", 35,  85,  Scalar(0, 200, 0)},
+        {"A", "A(红色)", 0,   10,  Scalar(0, 0, 255)},
+        {"B", "B(蓝色)", 100, 130, Scalar(255, 0, 0)},
+        {"C", "C(绿色)", 35,  85,  Scalar(0, 200, 0)},
     };
 
     Mat out = img.clone();
@@ -130,7 +134,7 @@ int main(int argc, char** argv) {
         vector<Point> pts;
         findNonZero(keep, pts);
         if (pts.size() < 50) {
-            cerr << sp.name << " 轨迹点太少，跳过" << endl;
+            cerr << sp.cn << " 轨迹点太少，跳过" << endl;
             continue;
         }
 
@@ -166,6 +170,7 @@ int main(int argc, char** argv) {
 
         Track t;
         t.name = sp.name;
+        t.cn = sp.cn;
         t.color = sp.bgr;
         t.sortX = sortX;
         t.prof = prof;
@@ -229,18 +234,22 @@ int main(int argc, char** argv) {
         // ---------- 6. 判定运动类型 ----------
         if (t.lineRMSE < 3.0) {
             t.type = "直线运动";
+            t.typeEn = "line";
             t.detail = "一阶拟合残差只有 " + to_string((int)lround(t.lineRMSE)) + " px";
         } else if (cross >= 4 && t.paraRMSE > 0.6 * t.lineRMSE) {
             t.type = "正弦曲线运动";
+            t.typeEn = "sine";
             t.detail = "去直线趋势后 " + to_string(cross) + " 次穿过零线，振幅约 " +
                        to_string((int)lround(t.amp)) + " px，周期约 " +
                        to_string((int)lround(t.period)) + " px";
         } else if (t.paraRMSE < 0.5 * t.lineRMSE) {
             t.type = "抛物线运动";
+            t.typeEn = "parabola";
             t.detail = "二次拟合残差 " + to_string((int)lround(t.paraRMSE)) +
                        " px，远小于直线拟合的 " + to_string((int)lround(t.lineRMSE)) + " px";
         } else {
             t.type = "一般曲线运动";
+            t.typeEn = "curve";
             t.detail = "直线拟合残差 " + to_string((int)lround(t.lineRMSE)) + " px";
         }
 
@@ -270,9 +279,13 @@ int main(int argc, char** argv) {
         circle(out, Point((int)t.finish.x, (int)t.finish.y), 5, t.color, 2);
 
         char buf[160];
-        snprintf(buf, sizeof(buf), "%s %s L=%dpx", t.name.c_str(),
-                 t.type.c_str(), (int)lround(t.length));
+        snprintf(buf, sizeof(buf), "%s  %s  L=%d px", t.name.c_str(),
+                 t.typeEn.c_str(), (int)lround(t.length));
+        // 起点贴着图像边缘时标签会跑到画布外，夹到可见范围里
         Point tp((int)t.start.x - 20, (int)t.start.y - 12);
+        Size ts = getTextSize(buf, FONT_HERSHEY_SIMPLEX, 0.5, 3, nullptr);
+        tp.x = max(8, min(out.cols - ts.width - 8, tp.x));
+        tp.y = max(ts.height + 40, min(out.rows - 8, tp.y));
         putText(out, buf, tp, FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 0), 3, LINE_AA);
         putText(out, buf, tp, FONT_HERSHEY_SIMPLEX, 0.5, t.color, 1, LINE_AA);
     }
@@ -287,7 +300,7 @@ int main(int argc, char** argv) {
     // ---------- 8. 控制台报告 ----------
     cout << "检测到轨迹数量: " << tracks.size() << endl;
     for (auto& t : tracks) {
-        cout << "\n" << t.name << " 轨迹" << endl;
+        cout << "\n" << t.cn << " 轨迹" << endl;
         cout << "  起点 (" << (int)t.start.x << ", " << (int)t.start.y << ")"
              << "  终点 (" << (int)t.finish.x << ", " << (int)t.finish.y << ")" << endl;
         cout << "  运动类型: " << t.type << "（" << t.detail << "）" << endl;
@@ -307,25 +320,25 @@ int main(int argc, char** argv) {
 
     cout << "\n轨迹长度排序: ";
     for (size_t i = 0; i < idx.size(); ++i) {
-        cout << (i ? " > " : "") << tracks[idx[i]].name << "("
+        cout << (i ? " > " : "") << tracks[idx[i]].cn << "("
              << (int)lround(tracks[idx[i]].length) << ")";
     }
     cout << endl;
 
     const Track& top = tracks[idx[0]];
-    cout << "轨迹最长的物体: " << top.name << "，" << (int)lround(top.length) << " px" << endl;
+    cout << "轨迹最长的物体: " << top.cn << "，" << (int)lround(top.length) << " px" << endl;
     if (idx.size() > 1) {
         const Track& second = tracks[idx[1]];
         double diff = top.length - second.length;
         if (diff < 0.1 * top.length)
-            cout << "  （与第二长 " << second.name << " 只差 "
+            cout << "  （与第二长 " << second.cn << " 只差 "
                  << (int)lround(diff) << " px，两者几乎等长）" << endl;
     }
     cout << "竖直落差最大的是 ";
     int iv = 0;
     for (size_t i = 1; i < tracks.size(); ++i)
         if (tracks[i].vspan > tracks[iv].vspan) iv = (int)i;
-    cout << tracks[iv].name << "（" << (int)lround(tracks[iv].vspan) << " px）" << endl;
+    cout << tracks[iv].cn << "（" << (int)lround(tracks[iv].vspan) << " px）" << endl;
 
     string outPath = (argc > 2) ? argv[2] : "q10_result.png";
     imwrite(outPath, out);

@@ -104,7 +104,11 @@ int main(int argc, char** argv) {
         order.push_back({centers.at<float>(i, 0), i});
     sort(order.begin(), order.end());
 
-    const char* names[3] = {"1角", "5角", "1元"};
+    // 注意：putText 用的是 Hershey 字体，只有 ASCII 字形，中文传进去会
+    // 原样画成一串问号。所以写进图里的标签一律用英文，控制台输出照旧
+    // 用中文（终端能正常显示）。
+    const char* names[3] = {"1 jiao", "5 jiao", "1 yuan"};
+    const char* namesCN[3] = {"1角", "5角", "1元"};
     const double values[3] = {0.1, 0.5, 1.0};
     const Scalar colors[3] = {Scalar(255, 0, 0),     // 1角 - 蓝
                               Scalar(0, 200, 0),     // 5角 - 绿
@@ -135,7 +139,7 @@ int main(int argc, char** argv) {
     // ---------- 3. 输出 ----------
     cout << "检出硬币总数: " << circles.size() << endl;
     for (int k = 2; k >= 0; --k)
-        cout << names[k] << ": " << count[k] << " 个（该档平均半径 "
+        cout << namesCN[k] << ": " << count[k] << " 个（该档平均半径 "
              << (int)order[k].first << " px）" << endl;
     cout << "总金额: " << fixed << setprecision(1) << total << " 元" << endl;
 
