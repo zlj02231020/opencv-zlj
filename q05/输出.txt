@@ -1,0 +1,5 @@
+标准件齿数: 12 齿
+Sample A：齿数 9，缺齿 1 处，matchShapes 距离 = 0.0031
+Sample B：齿数 10，缺齿 1 处，matchShapes 距离 = 0.0066
+标准件自比对基准: 0.0000
+结果图已保存: q05_result.png

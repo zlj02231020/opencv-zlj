@@ -1,0 +1,15 @@
+已保存掩码: q08_mask_red.png
+已保存掩码: q08_mask_yellow.png
+已保存掩码: q08_mask_green.png
+已保存掩码: q08_mask_blue.png
+已保存掩码: q08_mask_purple.png
+
+颜色区域面积统计（按面积降序）：
+  排名  颜色     面积(px²)   占比
+  1     blue        32853    6.84%
+  2     yellow      22099    4.60%
+  3     purple      20218    4.21%
+  4     red          3388    0.71%
+  5     green         741    0.15%
+
+结果图已保存: q08_result.png
