@@ -5,10 +5,12 @@
 //    颜色饱和度很高，而棋盘格是纯黑白（S≈0）。所以先把饱和的像素
 //    全部刷成白色，干扰物就消失了，再拿干净的灰度图去做角点检测。
 // 2. findChessboardCorners 的 patternSize 是"内角点"的个数，不是方格
-//    数：9x13 个方格对应 (9-1)x(13-1) = 8x12 个内角点。这两个参数
-//    写反了也能检出（图基本对称），所以两个顺序都试一次。
+//    数：13x9 个方格对应 (13-1)x(9-1) = 12x8 个内角点。这张图横比竖
+//    长，所以先按 12x8 试，检出的角点就是从左上到右下、一行一行排的；
+//    反过来写 8x12 也能检出（棋盘格转置一下还是棋盘格），但角点顺序
+//    会变成一列一列从下往上，画出来的连线是竖的，看起来像图倒了。
 // 3. 检出后用 cornerSubPix 把角点精化到亚像素。
-// 4. 方格尺寸：统计同一行相邻角点的间距取平均；真实边长 5mm，
+// 4. 方格尺寸：统计相邻角点的间距取平均；真实边长 5mm，
 //    像素/毫米 = 格宽(px) / 5。
 // ============================================================
 #include <opencv2/opencv.hpp>
@@ -34,13 +36,12 @@ int main(int argc, char** argv) {
 
     Mat saturated;
     inRange(hsv, Scalar(0, 70, 70), Scalar(180, 255, 255), saturated);
-    // 干扰物区域直接填白：棋盘格是黑白两色，填白不影响它
-    gray.setTo(Scalar(255), saturated);
+    gray.setTo(Scalar(255), saturated);   // 棋盘格是黑白，填白不影响它
 
     // ---------- 2. 角点检测 ----------
-    const int SQUARES_W = 9, SQUARES_H = 13;      // 方格数
-    const int INNER_W = SQUARES_W - 1;            // 内角点数
-    const int INNER_H = SQUARES_H - 1;
+    const int SQUARES_W = 13, SQUARES_H = 9;      // 方格数（横 x 竖）
+    const int INNER_W = SQUARES_W - 1;            // 内角点数 12
+    const int INNER_H = SQUARES_H - 1;            // 8
 
     vector<Point2f> corners;
     bool found = false;
@@ -65,7 +66,6 @@ int main(int argc, char** argv) {
                  TermCriteria(TermCriteria::EPS + TermCriteria::MAX_ITER, 30, 0.01));
 
     // ---------- 4. 方格像素尺寸 ----------
-    // 同一行里相邻两个角点的距离就是格宽；把横、竖两个方向都统计进来
     double sumH = 0, sumV = 0;
     int cntH = 0, cntV = 0;
     int W = usedPattern.width, H = usedPattern.height;
@@ -83,39 +83,47 @@ int main(int argc, char** argv) {
     double pxPerMm = squarePx / REAL_MM;
 
     // ---------- 5. 画图输出 ----------
+    // 自己按行连折线，每行一个颜色（跟参考答案图的画法一致）：
+    // 行号决定色相，从红到紫。这样一眼能看出 12 个角点一行、共 8 行。
     Mat out = img.clone();
-    drawChessboardCorners(out, usedPattern, corners, found);
-
-    // 角点再标一遍小圆，看得更清楚
+    for (int r = 0; r < H; ++r) {
+        Scalar col;
+        Mat hsvc(1, 1, CV_8UC3, Scalar(r * 179 / max(1, H - 1), 220, 230));
+        cvtColor(hsvc, hsvc, COLOR_HSV2BGR);
+        Vec3b v = hsvc.at<Vec3b>(0, 0);
+        col = Scalar(v[0], v[1], v[2]);
+        for (int c = 0; c + 1 < W; ++c)
+            line(out, corners[r * W + c], corners[r * W + c + 1], col, 2, LINE_AA);
+    }
     for (const auto& p : corners)
         circle(out, p, 2, Scalar(0, 255, 255), -1);
 
-    // 理论值：(9-1)*(13-1)
+    // 结论写在右边空白处（x>690 这一条除了红色圆点全是白的）
     int theory = INNER_W * INNER_H;
     char buf[192];
-    snprintf(buf, sizeof(buf), "Corners: %d (theory %dx%d = %d)",
-             (int)corners.size(), INNER_W, INNER_H, theory);
-    putText(out, buf, Point(10, 28), FONT_HERSHEY_SIMPLEX, 0.65,
-            Scalar(0, 0, 0), 3, LINE_AA);
-    putText(out, buf, Point(10, 28), FONT_HERSHEY_SIMPLEX, 0.65,
-            Scalar(0, 0, 255), 1, LINE_AA);
-
-    snprintf(buf, sizeof(buf), "Square: %.1f px = %.1f mm -> %.2f px/mm",
-             squarePx, REAL_MM, pxPerMm);
-    putText(out, buf, Point(10, 58), FONT_HERSHEY_SIMPLEX, 0.65,
-            Scalar(0, 0, 0), 3, LINE_AA);
-    putText(out, buf, Point(10, 58), FONT_HERSHEY_SIMPLEX, 0.65,
-            Scalar(0, 0, 255), 1, LINE_AA);
-
-    // 相邻角点之间连一条线，让"一格 50 像素"能直接看出来
-    if (corners.size() > 1) {
-        line(out, corners[0], corners[1], Scalar(0, 200, 0), 1, LINE_AA);
-    }
+    const int TX = 692;
+    int ty = 40;
+    snprintf(buf, sizeof(buf), "Corners: %d", (int)corners.size());
+    putText(out, buf, Point(TX, ty), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 0), 1, LINE_AA);
+    ty += 26;
+    snprintf(buf, sizeof(buf), "(%d x %d inner)", usedPattern.width, usedPattern.height);
+    putText(out, buf, Point(TX, ty), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 0), 1, LINE_AA);
+    ty += 26;
+    snprintf(buf, sizeof(buf), "theory: %dx%d", INNER_W, INNER_H);
+    putText(out, buf, Point(TX, ty), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 0), 1, LINE_AA);
+    ty += 36;
+    snprintf(buf, sizeof(buf), "Square: %.1f px", squarePx);
+    putText(out, buf, Point(TX, ty), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 200), 1, LINE_AA);
+    ty += 26;
+    snprintf(buf, sizeof(buf), "Scale: %.2f px/mm", pxPerMm);
+    putText(out, buf, Point(TX, ty), FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0, 0, 200), 1, LINE_AA);
 
     // ---------- 6. 控制台输出 ----------
     cout << "检测到内角点: " << corners.size() << " 个" << endl;
     cout << "理论值: (" << SQUARES_W << "-1) x (" << SQUARES_H << "-1) = "
          << theory << " 个" << endl;
+    cout << "角点排列: " << usedPattern.width << " 列 x " << usedPattern.height
+         << " 行（每行 " << usedPattern.width << " 个）" << endl;
     cout << "方格像素尺寸: 横 " << fixed << setprecision(2) << sqW
          << " px，竖 " << sqH << " px，平均 " << squarePx << " px" << endl;
     cout << "真实格边长: " << REAL_MM << " mm" << endl;

@@ -143,11 +143,15 @@ int main(int argc, char** argv) {
              << (int)order[k].first << " px）" << endl;
     cout << "总金额: " << fixed << setprecision(1) << total << " 元" << endl;
 
-    char head[128];
-    snprintf(head, sizeof(head), "1yuan:%d  5jiao:%d  1jiao:%d  total:%.1f",
-             count[2], count[1], count[0], total);
-    putText(out, head, Point(10, 28), FONT_HERSHEY_SIMPLEX, 0.7,
-            Scalar(0, 0, 0), 2, LINE_AA);
+    // 图上的汇总行把"枚数"和"金额"分开写清楚：参考答案图上的
+    // "Total:17" 是枚数（5+6+6），不是钱数，两个数字混在一行最容易看岔。
+    char head[160];
+    snprintf(head, sizeof(head), "count:%d (1y:%d 5j:%d 1j:%d)   money:%.1f yuan",
+             (int)circles.size(), count[2], count[1], count[0], total);
+    putText(out, head, Point(10, 28), FONT_HERSHEY_SIMPLEX, 0.6,
+            Scalar(0, 0, 0), 3, LINE_AA);
+    putText(out, head, Point(10, 28), FONT_HERSHEY_SIMPLEX, 0.6,
+            Scalar(0, 0, 0), 1, LINE_AA);
 
     string outPath = (argc > 2) ? argv[2] : "q02_result.png";
     imwrite(outPath, out);
