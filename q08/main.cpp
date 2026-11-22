@@ -36,11 +36,14 @@ int main(int argc, char** argv) {
 
     const int SMIN = 60, VMIN = 60;
     vector<ColorSpec> specs = {
-        {"red",    {{0, 10}, {170, 180}}, Scalar(0, 0, 255)},
-        {"yellow", {{15, 35}},            Scalar(0, 255, 255)},
-        {"green",  {{35, 85}},            Scalar(0, 255, 0)},
-        {"blue",   {{85, 130}},           Scalar(255, 0, 0)},
-        {"purple", {{130, 170}},          Scalar(255, 0, 255)},
+        // inRange 的两个端点都算在区间内，所以端点只能归给一种颜色：
+        // yellow/green 的 35、green/blue 的 85、blue/purple 的 130、
+        // purple/red 的 170 都只写在一边，五个掩码才是互斥的。
+        {"red",    {{0, 10}, {170, 179}}, Scalar(0, 0, 255)},
+        {"yellow", {{15, 34}},            Scalar(0, 255, 255)},
+        {"green",  {{35, 84}},            Scalar(0, 255, 0)},
+        {"blue",   {{85, 129}},           Scalar(255, 0, 0)},
+        {"purple", {{130, 169}},          Scalar(255, 0, 255)},
     };
 
     double total = (double)img.rows * img.cols;

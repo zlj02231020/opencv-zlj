@@ -4,7 +4,7 @@
 // 思路：
 //   测试图是带竖直渐变的金属表面，所以不能用一个固定阈值做二值化
 //   （亮的那头会把正常纹理也判成缺陷）。做法是先估计背景：
-//     background = 大核高斯模糊(gray)
+//     background = 大核中值滤波(gray)
 //   大核会把细划痕、小斑点这些高频细节全部抹平，剩下的就是"光滑的
 //   理想表面"。用 gray - background 得到的残差图里，缺陷就是突出的
 //   正负峰值，与整体亮度无关。
@@ -113,7 +113,7 @@ int main(int argc, char** argv) {
     for (auto& c : bc) {
         if (contourArea(c) < 25) continue;
         ++nBright;
-        drawBox(minAreaRect(c), Scalar(0, 255, 255), "D" + to_string(++idx));
+        drawBox(minAreaRect(c), Scalar(0, 0, 255), "D" + to_string(++idx));
     }
 
     // ---------- 5. 输出 ----------

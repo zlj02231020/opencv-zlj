@@ -7,9 +7,10 @@
 //      这样只跟"局部比周围暗多少"有关，跟整张图的亮度无关。
 //   2. 残差阈值 14 二值化。7x7 的闭运算用来接上主裂纹中间断开的一截
 //      （阈值一高，裂纹在弯曲处会断成两三段）。
-//   3. 每段裂纹用 ximgproc::thinning 细化成单像素骨架，再在骨架上做
-//      两次 BFS 求最长路径——这才是裂纹的实际走向长度；直接数骨架
-//      像素数会把斜着走的像素少算，枝条上的毛刺又多算。
+//   3. 每段裂纹用 ximgproc::thinning 细化成单像素骨架，再在骨架上取
+//      直径（最长路径）当裂纹的实际走向长度——直接数骨架像素数会把
+//      斜着走的像素少算，枝条上的毛刺又多算。8 邻域是带权图（斜向
+//      √2），所以用两遍 Dijkstra 求直径，不用普通 BFS。
 //   4. 面积 < 40 或被闭运算连不上的碎屑丢掉。
 //   5. 每段裂纹用不同颜色描出来，标上编号和长度。
 // ============================================================
@@ -20,27 +21,38 @@
 #include <algorithm>
 #include <cmath>
 #include <queue>
+#include <functional>
 
 using namespace std;
 using namespace cv;
 
-// 在骨架图上求最长路径：先从任意骨架点 BFS 到最远点，再从那个点 BFS
-// 到最远点，两次之间的路径就是骨架的"直径"。斜向步长按 √2 计。
+// 在骨架图上求最长路径（直径）：先从任意骨架点出发找最远点，再从那个
+// 点出发找最远点，两次之间的路径就是骨架的直径。
+// 8 邻域里横竖一步算 1、斜向一步算 √2，这是个带权图，普通 BFS 按入队
+// 顺序扩散、不按距离，带权时结果会偏长；所以这里用 Dijkstra。骨架基本
+// 是树，两遍扫描对树是精确的，个别小环只会带来很小的误差。
 static double longestPath(const Mat& sk, Point& pa, Point& pb) {
     int H = sk.rows, W = sk.cols;
+    const double INF = 1e18;
 
-    auto bfs = [&](int sy, int sx, double* outDist, int* ey, int* ex) {
-        vector<double> d(H * W, -1.0);
-        queue<int> q;
+    auto dijkstra = [&](int sy, int sx, double* outDist, int* ey, int* ex) {
+        vector<double> d((size_t)H * W, INF);
+        vector<char> done((size_t)H * W, 0);
+        using Item = pair<double, int>;                    // (距离, 线性下标)
+        priority_queue<Item, vector<Item>, greater<Item>> pq;
         int start = sy * W + sx;
         d[start] = 0;
-        q.push(start);
+        pq.push({0.0, start});
         double best = 0;
         int bi = start;
-        while (!q.empty()) {
-            int id = q.front(); q.pop();
+        while (!pq.empty()) {
+            double dist = pq.top().first;
+            int id = pq.top().second;
+            pq.pop();
+            if (done[id]) continue;
+            done[id] = 1;
+            if (dist > best) { best = dist; bi = id; }
             int y = id / W, x = id % W;
-            if (d[id] > best) { best = d[id]; bi = id; }
             for (int dy = -1; dy <= 1; ++dy)
                 for (int dx = -1; dx <= 1; ++dx) {
                     if (!dx && !dy) continue;
@@ -48,9 +60,8 @@ static double longestPath(const Mat& sk, Point& pa, Point& pb) {
                     if (ny < 0 || nx < 0 || ny >= H || nx >= W) continue;
                     if (!sk.at<uchar>(ny, nx)) continue;
                     int nid = ny * W + nx;
-                    if (d[nid] >= 0) continue;
-                    d[nid] = d[id] + ((dx == 0 || dy == 0) ? 1.0 : 1.41421356);
-                    q.push(nid);
+                    double nd = dist + ((dx == 0 || dy == 0) ? 1.0 : 1.41421356);
+                    if (nd < d[nid]) { d[nid] = nd; pq.push({nd, nid}); }
                 }
         }
         *outDist = best; *ey = bi / W; *ex = bi % W;
@@ -63,9 +74,9 @@ static double longestPath(const Mat& sk, Point& pa, Point& pb) {
     if (sy < 0) return 0;
 
     double d1; int y1, x1;
-    bfs(sy, sx, &d1, &y1, &x1);
+    dijkstra(sy, sx, &d1, &y1, &x1);
     double d2; int y2, x2;
-    bfs(y1, x1, &d2, &y2, &x2);
+    dijkstra(y1, x1, &d2, &y2, &x2);
 
     pa = Point(x1, y1);
     pb = Point(x2, y2);

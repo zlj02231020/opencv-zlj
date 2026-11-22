@@ -445,6 +445,9 @@ int main(int argc, char** argv) {
     y += 15;
     putText(out, "hollow ring = end", Point(x0, y), FONT_HERSHEY_SIMPLEX, 0.38,
             Scalar(90, 90, 90), 1, LINE_AA);
+    y += 15;
+    putText(out, "length = 4 px binned polyline", Point(x0, y),
+            FONT_HERSHEY_SIMPLEX, 0.35, Scalar(90, 90, 90), 1, LINE_AA);
 
     // ---------- 8. 控制台报告 ----------
     cout << "检测到轨迹数量: " << tracks.size() << endl;
@@ -454,7 +457,8 @@ int main(int argc, char** argv) {
              << "  终点 (" << (int)t.finish.x << ", " << (int)t.finish.y << ")"
              << "（起点按图上的 start 标签定向）" << endl;
         cout << "  运动类型: " << t.type << "（" << t.detail << "）" << endl;
-        cout << "  轨迹总长度: " << (int)lround(t.length) << " px" << endl;
+        cout << "  轨迹长度估计: " << (int)lround(t.length)
+             << " px（4 px 分箱后的折线长度）" << endl;
         cout << "  跨度: 水平 " << (int)lround(t.hspan)
              << " px，竖直 " << (int)lround(t.vspan) << " px" << endl;
         if (t.type.find("正弦") != string::npos)

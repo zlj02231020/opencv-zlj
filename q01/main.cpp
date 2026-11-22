@@ -114,7 +114,8 @@ static vector<int> findHuePeaks(const Mat& H, const Mat& fg) {
     for (int i = 0; i < 180; ++i) total += hist[i];
     if (total == 0) return {};
 
-    // 3 点平滑后找局部极大，阈值取总票数的 3%
+    // 直接在色相直方图上找局部极大（和自己左右各一个 bin 比），
+    // 阈值取总票数的 3%
     int thr = (int)(total * 0.03);
     vector<int> peaks;
     for (int i = 0; i < 180; ++i) {
